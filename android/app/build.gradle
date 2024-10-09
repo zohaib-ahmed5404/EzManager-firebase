@@ -1,0 +1,47 @@
+plugins {
+    id "com.android.application"
+    id "org.jetbrains.kotlin.android" version "1.8.21"
+    id "dev.flutter.flutter-gradle-plugin"
+    id 'com.google.gms.google-services'
+}
+
+android {
+    namespace = "com.example.ezmanager_task4"
+    compileSdk = flutter.compileSdkVersion
+    ndkVersion = flutter.ndkVersion
+
+    compileOptions {
+        sourceCompatibility = JavaVersion.VERSION_1_8
+        targetCompatibility = JavaVersion.VERSION_1_8
+    }
+
+    kotlinOptions {
+        jvmTarget = JavaVersion.VERSION_1_8
+    }
+
+    defaultConfig {
+        // Specify your unique Application ID.
+        applicationId = "com.example.ezmanager_task4"
+        minSdkVersion 23
+        targetSdk = flutter.targetSdkVersion
+        versionCode = flutter.versionCode
+        versionName = flutter.versionName
+    }
+
+    buildTypes {
+        release {
+            // Add your own signing config for the release build.
+            signingConfig = signingConfigs.debug
+        }
+    }
+}
+
+// Add Firebase BOM (Bill of Materials) to manage versions of Firebase libraries
+dependencies {
+    implementation platform('com.google.firebase:firebase-bom:33.0.0') // Use the latest BOM version
+    implementation 'com.google.firebase:firebase-analytics' // Optional: Add Firebase Analytics
+    // Add any other Firebase dependencies you need, e.g., Firebase Auth, Firestore, etc.
+}
+
+// Apply the Google Services plugin to the project
+apply plugin: 'com.google.gms.google-services'
