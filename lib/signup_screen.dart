@@ -1,5 +1,7 @@
 import 'package:firebase_auth/firebase_auth.dart';
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart'; // For phone number input format
+import 'package:flutter_verification_code/flutter_verification_code.dart'; // For OTP input
 import 'package:google_sign_in/google_sign_in.dart';
 
 import 'home_screen.dart'; // Import HomeScreen
@@ -16,53 +18,102 @@ class SignupScreenState extends State<SignupScreen> {
   final TextEditingController _emailController = TextEditingController();
   final TextEditingController _passwordController = TextEditingController();
   final TextEditingController _confirmPasswordController = TextEditingController();
+  final TextEditingController _phoneNumberController = TextEditingController();
   final FirebaseAuth _auth = FirebaseAuth.instance;
 
   bool _isLoading = false;
+  String? _verificationId;
+  bool _isOTPMode = false; // To switch between OTP and normal signup mode
+  String _smsCode = '';
 
-  Future<void> _signup() async {
-    if (_passwordController.text != _confirmPasswordController.text) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Passwords do not match')),
-      );
-      return;
-    }
 
+  // Phone number verification
+  Future<void> _verifyPhoneNumber() async {
+    setState(() {
+      _isLoading = true;
+    });
+
+    await _auth.verifyPhoneNumber(
+      phoneNumber: _phoneNumberController.text.trim(),
+      verificationCompleted: (PhoneAuthCredential credential) async {
+        await _auth.signInWithCredential(credential);
+        setState(() {
+          _isLoading = false;
+          _isOTPMode = false; // Reset OTP mode if verification completed
+        });
+
+        if (!mounted) return;
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(content: Text('Phone number verified successfully!')),
+        );
+
+        Navigator.pushReplacement(
+          context,
+          MaterialPageRoute(builder: (context) => const HomeScreen()),
+        );
+      },
+      verificationFailed: (FirebaseAuthException e) {
+        setState(() {
+          _isLoading = false;
+        });
+        ScaffoldMessenger.of(context).showSnackBar(
+          SnackBar(content: Text('Verification failed. ${e.message}')),
+        );
+      },
+      codeSent: (String verificationId, int? resendToken) {
+        setState(() {
+          _verificationId = verificationId;
+          _isOTPMode = true; // Switch to OTP input mode
+          _isLoading = false;
+        });
+      },
+      codeAutoRetrievalTimeout: (String verificationId) {
+        setState(() {
+          _verificationId = verificationId;
+          _isLoading = false;
+        });
+      },
+    );
+  }
+
+  Future<void> _verifyOTP() async {
     setState(() {
       _isLoading = true;
     });
 
     try {
-      // Create a new user with email and password
-      await _auth.createUserWithEmailAndPassword(
-        email: _emailController.text.trim(),
-        password: _passwordController.text.trim(),
+      PhoneAuthCredential credential = PhoneAuthProvider.credential(
+        verificationId: _verificationId!,
+        smsCode: _smsCode,
       );
-      if (!mounted) return;
 
+      await _auth.signInWithCredential(credential);
+      setState(() {
+        _isLoading = false;
+      });
+
+      if (!mounted) return;
       ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Signup successful!')),
+        const SnackBar(content: Text('Phone number verified successfully!')),
       );
 
       Navigator.pushReplacement(
         context,
         MaterialPageRoute(builder: (context) => const HomeScreen()),
       );
-    } on FirebaseAuthException catch (e) {
-      String errorMessage = e.message ?? 'Signup failed';
-      ScaffoldMessenger.of(context).showSnackBar(
-        SnackBar(content: Text(errorMessage)),
-      );
-    } finally {
+    } catch (e) {
       setState(() {
         _isLoading = false;
       });
+      if (!mounted) return;
+      ScaffoldMessenger.of(context).showSnackBar(
+        const SnackBar(content: Text('Failed to verify OTP. Please try again.')),
+      );
     }
   }
 
   Future<void> _googleSignIn() async {
     try {
-      // Trigger the Google Authentication flow
       final GoogleSignInAccount? googleUser = await GoogleSignIn().signIn();
       if (googleUser == null) return; // User cancelled the sign-in
 
@@ -73,7 +124,6 @@ class SignupScreenState extends State<SignupScreen> {
         idToken: googleAuth.idToken,
       );
 
-      // Sign in with the Google credentials
       await _auth.signInWithCredential(credential);
       if (!mounted) return;
 
@@ -90,120 +140,154 @@ class SignupScreenState extends State<SignupScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      backgroundColor: Colors.black,
+      backgroundColor: Colors.white,
       appBar: AppBar(
-        title: const Text('Signup'),
-        centerTitle: true,
-        backgroundColor: Colors.teal,
+        backgroundColor: Colors.white,
+        title: const Text(
+          'Signup',
+          style: TextStyle(color: Color(0xFF757575)),
+        ),
       ),
-      body: Center(
-        child: Padding(
-          padding: const EdgeInsets.all(16.0),
-          child: SingleChildScrollView(
-            child: Column(
-              mainAxisAlignment: MainAxisAlignment.center,
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                const Text(
-                  'Create an Account',
-                  style: TextStyle(fontSize: 32, color: Colors.white, fontWeight: FontWeight.bold),
-                ),
-                const SizedBox(height: 20),
-                // Username Field
-                TextField(
-                  controller: _usernameController,
-                  decoration: InputDecoration(
-                    hintText: 'Username',
-                    hintStyle: const TextStyle(color: Colors.white70),
-                    filled: true,
-                    fillColor: Colors.grey[800],
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  style: const TextStyle(color: Colors.white),
-                ),
-                const SizedBox(height: 10),
-                // Email Field
-                TextField(
-                  controller: _emailController,
-                  decoration: InputDecoration(
-                    hintText: 'Email',
-                    hintStyle: const TextStyle(color: Colors.white70),
-                    filled: true,
-                    fillColor: Colors.grey[800],
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  style: const TextStyle(color: Colors.white),
-                ),
-                const SizedBox(height: 10),
-                // Password Field
-                TextField(
-                  controller: _passwordController,
-                  decoration: InputDecoration(
-                    hintText: 'Password',
-                    hintStyle: const TextStyle(color: Colors.white70),
-                    filled: true,
-                    fillColor: Colors.grey[800],
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  obscureText: true,
-                  style: const TextStyle(color: Colors.white),
-                ),
-                const SizedBox(height: 10),
-                // Confirm Password Field
-                TextField(
-                  controller: _confirmPasswordController,
-                  decoration: InputDecoration(
-                    hintText: 'Confirm Password',
-                    hintStyle: const TextStyle(color: Colors.white70),
-                    filled: true,
-                    fillColor: Colors.grey[800],
-                    border: OutlineInputBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  obscureText: true,
-                  style: const TextStyle(color: Colors.white),
-                ),
-                const SizedBox(height: 20),
-                // Sign Up Button
-                _isLoading
-                    ? const Center(child: CircularProgressIndicator())
-                    : ElevatedButton(
-                        onPressed: _signup,
-                        style: ElevatedButton.styleFrom(
-                          backgroundColor: Colors.green,
-                          padding: const EdgeInsets.symmetric(vertical: 16.0),
-                          shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                        ),
-                        child: const Center(
-                          child: Text('Sign Up', style: TextStyle(fontSize: 18)),
-                        ),
-                      ),
-                const SizedBox(height: 10),
-                // Sign Up with Google Button
-                ElevatedButton(
-                  onPressed: _googleSignIn,
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: Colors.green,
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(10)),
-                  ),
-                  child: const Center(child: Text('Sign Up with Google', style: TextStyle(fontSize: 18))),
-                ),
-                const SizedBox(height: 20),
-                // Redirect to Login Screen
-                Row(
-                  mainAxisAlignment: MainAxisAlignment.center,
-                  children: [
-                    const Text('Already have an account?', style: TextStyle(color: Colors.white70)),
-                    TextButton(
-                      onPressed: () {
-                        Navigator.pop(context); // Go back to the login screen
-                      },
-                      child: const Text('Login', style: TextStyle(color: Colors.green)),
+      body: SafeArea(
+        child: SizedBox(
+          width: double.infinity,
+          child: Padding(
+            padding: const EdgeInsets.symmetric(horizontal: 16),
+            child: SingleChildScrollView(
+              child: Column(
+                children: [
+                  const SizedBox(height: 16),
+                  const Text(
+                    'Create an Account',
+                    style: TextStyle(
+                      color: Colors.black,
+                      fontSize: 24,
+                      fontWeight: FontWeight.bold,
                     ),
-                  ],
-                ),
-              ],
+                  ),
+                  const SizedBox(height: 16),
+                  _buildTextField(
+                    controller: _usernameController,
+                    hintText: 'Username',
+                  ),
+                  const SizedBox(height: 10),
+                  _buildTextField(
+                    controller: _emailController,
+                    hintText: 'Email',
+                    keyboardType: TextInputType.emailAddress,
+                  ),
+                  const SizedBox(height: 10),
+                  _buildTextField(
+                    controller: _passwordController,
+                    hintText: 'Password',
+                    obscureText: true,
+                  ),
+                  const SizedBox(height: 10),
+                  _buildTextField(
+                    controller: _confirmPasswordController,
+                    hintText: 'Confirm Password',
+                    obscureText: true,
+                  ),
+                  const SizedBox(height: 10),
+                  // Phone Number Field
+                  _buildTextField(
+                    controller: _phoneNumberController,
+                    hintText: 'Phone Number (e.g. +92 300 1234567)',
+                    keyboardType: TextInputType.phone,
+                    inputFormatters: [FilteringTextInputFormatter.digitsOnly],
+                  ),
+                  const SizedBox(height: 20),
+                  // Show either OTP input or Phone Verification button
+                  _isOTPMode
+                      ? Column(
+                          children: [
+                            VerificationCode(
+                              length: 6,
+                              onCompleted: (String value) {
+                                setState(() {
+                                  _smsCode = value;
+                                });
+                              },
+                              onEditing: (bool value) {},
+                            ),
+                            const SizedBox(height: 20),
+                            _isLoading
+                                ? const CircularProgressIndicator()
+                                : ElevatedButton(
+                                    onPressed: _verifyOTP,
+                                    style: ElevatedButton.styleFrom(
+                                      elevation: 0,
+                                      backgroundColor: const Color(0xFFFF7643),
+                                      foregroundColor: Colors.white,
+                                      minimumSize: const Size(double.infinity, 48),
+                                      shape: const RoundedRectangleBorder(
+                                        borderRadius: BorderRadius.all(Radius.circular(16)),
+                                      ),
+                                    ),
+                                    child: const Text('Verify OTP'),
+                                  ),
+                          ],
+                        )
+                      : ElevatedButton(
+                          onPressed: _verifyPhoneNumber,
+                          style: ElevatedButton.styleFrom(
+                            elevation: 0,
+                            backgroundColor: const Color(0xFFFF7643),
+                            foregroundColor: Colors.white,
+                            minimumSize: const Size(double.infinity, 48),
+                            shape: const RoundedRectangleBorder(
+                              borderRadius: BorderRadius.all(Radius.circular(16)),
+                            ),
+                          ),
+                          child: _isLoading
+                              ? const CircularProgressIndicator(color: Colors.white)
+                              : const Text('Send OTP'),
+                        ),
+                  const SizedBox(height: 20),
+                  ElevatedButton(
+                    onPressed: _googleSignIn,
+                    style: ElevatedButton.styleFrom(
+                      elevation: 0,
+                      backgroundColor: Colors.white,
+                      foregroundColor: const Color(0xFFFF7643),
+                      minimumSize: const Size(double.infinity, 48),
+                      shape: const RoundedRectangleBorder(
+                        borderRadius: BorderRadius.all(Radius.circular(16)),
+                      ),
+                    ),
+                    child: const Text('Sign up with Google'),
+                  ),
+                  const SizedBox(height: 20),
+                ],
+              ),
             ),
           ),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildTextField({
+    required TextEditingController controller,
+    required String hintText,
+    bool obscureText = false,
+    TextInputType keyboardType = TextInputType.text,
+    List<TextInputFormatter>? inputFormatters,
+  }) {
+    return TextField(
+      controller: controller,
+      obscureText: obscureText,
+      keyboardType: keyboardType,
+      inputFormatters: inputFormatters,
+      decoration: InputDecoration(
+        hintText: hintText,
+        border: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFFF7643)),
+        ),
+        focusedBorder: OutlineInputBorder(
+          borderRadius: BorderRadius.circular(16),
+          borderSide: const BorderSide(color: Color(0xFFFF7643)),
         ),
       ),
     );

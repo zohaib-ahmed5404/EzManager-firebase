@@ -1,9 +1,10 @@
 import 'package:flutter/material.dart';
-import 'package:flutter_local_notifications/flutter_local_notifications.dart'; // For local notifications
+import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:provider/provider.dart';
 
-import '../store/theme_provider.dart';
-import '../store/todo_store.dart';
+import '/store/theme_provider.dart';
+import '/store/todo_store.dart';
+import '/store/user_profile_store.dart';
 import 'add_task_screen.dart';
 import 'settings_screen.dart';
 
@@ -72,11 +73,12 @@ class HomeScreenState extends State<HomeScreen> {
   Widget build(BuildContext context) {
     final todoStore = Provider.of<ToDoStore>(context);
     final themeProvider = Provider.of<ThemeProvider>(context);
+    Provider.of<UserProfileStore>(context);
 
     return Scaffold(
-      backgroundColor: themeProvider.isDarkMode ? Colors.grey[900] : Colors.grey[200],
+      backgroundColor: themeProvider.isDarkMode ? Colors.black : Colors.white,
       appBar: AppBar(
-        backgroundColor: themeProvider.isDarkMode ? Colors.black : Colors.green,
+        backgroundColor: themeProvider.isDarkMode ? Colors.grey[850] : Colors.green,
         title: const Text('EZ Manager', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
         centerTitle: true,
         actions: [
@@ -94,7 +96,7 @@ class HomeScreenState extends State<HomeScreen> {
             onPressed: () {
               Navigator.push(
                 context,
-                MaterialPageRoute(builder: (context) =>  SettingsScreen()),
+                MaterialPageRoute(builder: (context) => SettingsScreen()),
               );
             },
           ),
@@ -152,7 +154,7 @@ class HomeScreenState extends State<HomeScreen> {
                           fontSize: 18,
                           fontWeight: FontWeight.bold,
                           color: isOverdue ? Colors.white : Colors.black87,
-                          decoration: task.isCompleted ? TextDecoration.lineThrough : TextDecoration.none, // Add line-through if completed
+                          decoration: task.isCompleted ? TextDecoration.lineThrough : TextDecoration.none,
                         ),
                       ),
                     ),
@@ -174,7 +176,6 @@ class HomeScreenState extends State<HomeScreen> {
                         Checkbox(
                           value: task.isCompleted,
                           onChanged: (value) {
-                            // Update the completion status of the task
                             todoStore.markTaskCompleted(task.id, value!);
                           },
                           activeColor: Colors.green,

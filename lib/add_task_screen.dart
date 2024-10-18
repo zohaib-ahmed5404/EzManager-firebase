@@ -1,4 +1,8 @@
 import 'package:flutter/material.dart';
+import 'package:google_sign_in/google_sign_in.dart';
+import 'package:googleapis/calendar/v3.dart' as gcal;
+import 'package:googleapis_auth/auth_io.dart'; // For OAuth
+import 'package:http/http.dart' as http;
 import 'package:provider/provider.dart';
 
 import 'store/todo_store.dart';
@@ -25,22 +29,21 @@ class AddTaskScreenState extends State<AddTaskScreen> {
     return Scaffold(
       appBar: AppBar(
         title: const Text('Add Task'),
-        titleTextStyle: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold, ),
+        titleTextStyle: const TextStyle(fontSize: 40, fontWeight: FontWeight.bold),
         centerTitle: true,
-        backgroundColor: theme.appBarTheme.backgroundColor, // Use theme colors
-        elevation: 0, // Flat app bar for a modern look
+        backgroundColor: theme.appBarTheme.backgroundColor,
+        elevation: 0,
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(16.0),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
-            // Title TextField
             TextField(
               controller: _titleController,
               decoration: InputDecoration(
                 labelText: 'Title',
-                labelStyle: TextStyle(color: theme.colorScheme.secondary), // Updated for dark mode
+                labelStyle: TextStyle(color: theme.colorScheme.secondary),
                 enabledBorder: OutlineInputBorder(
                   borderSide: BorderSide(color: theme.colorScheme.secondary),
                   borderRadius: BorderRadius.circular(12),
@@ -52,8 +55,6 @@ class AddTaskScreenState extends State<AddTaskScreen> {
               ),
             ),
             const SizedBox(height: 16),
-
-            // Description TextField
             TextField(
               controller: _descriptionController,
               decoration: InputDecoration(
@@ -71,8 +72,6 @@ class AddTaskScreenState extends State<AddTaskScreen> {
               maxLines: 3,
             ),
             const SizedBox(height: 16),
-
-            // Important Checkbox
             Row(
               children: [
                 const Text('Important:'),
@@ -83,12 +82,10 @@ class AddTaskScreenState extends State<AddTaskScreen> {
                       _isImportant = value ?? false;
                     });
                   },
-                  activeColor: theme.colorScheme.secondary, // Update checkbox color for dark mode
+                  activeColor: theme.colorScheme.secondary,
                 ),
               ],
             ),
-
-            // Category TextField
             TextField(
               decoration: InputDecoration(
                 labelText: 'Category',
@@ -107,8 +104,6 @@ class AddTaskScreenState extends State<AddTaskScreen> {
               },
             ),
             const SizedBox(height: 16),
-
-            // Date Picker Button
             TextButton(
               onPressed: () async {
                 DateTime? pickedDate = await showDatePicker(
@@ -128,25 +123,23 @@ class AddTaskScreenState extends State<AddTaskScreen> {
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
-                backgroundColor: theme.colorScheme.secondaryContainer, // Update background for dark mode
+                backgroundColor: theme.colorScheme.secondaryContainer,
               ),
               child: Text(
                 _deadline == null
                     ? 'Select Deadline'
                     : 'Deadline: ${_deadline!.toLocal()}'.split(' ')[0],
-                style: TextStyle(color: theme.colorScheme.onSecondary), // Update text color
+                style: TextStyle(color: theme.colorScheme.onSecondary),
               ),
             ),
             const SizedBox(height: 20),
-
-            // Add Task Button
             ElevatedButton(
               onPressed: () {
                 _addTask(todoStore);
               },
               style: ElevatedButton.styleFrom(
                 padding: const EdgeInsets.symmetric(vertical: 14, horizontal: 24),
-                backgroundColor: theme.colorScheme.primary, // Use theme colors
+                backgroundColor: theme.colorScheme.primary,
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(12),
                 ),
@@ -173,7 +166,12 @@ class AddTaskScreenState extends State<AddTaskScreen> {
           _deadline!,
         );
 
-        // Clear the fields after the task is added
+        await _syncWithGoogleCalendar(
+          _titleController.text,
+          _descriptionController.text,
+          _deadline!,
+        );
+
         _titleController.clear();
         _descriptionController.clear();
         _isImportant = false;
@@ -197,5 +195,52 @@ class AddTaskScreenState extends State<AddTaskScreen> {
         const SnackBar(content: Text('Please fill all fields')),
       );
     }
+  }
+
+  Future<void> _syncWithGoogleCalendar(String title, String description, DateTime deadline) async {
+    final client = await authenticateWithGoogle();
+    final calendarApi = gcal.CalendarApi(client);
+
+    final event = gcal.Event(
+      summary: title,
+      description: description,
+      start: gcal.EventDateTime(
+        dateTime: deadline,
+        timeZone: "Asia/Karachi",
+      ),
+      end: gcal.EventDateTime(
+        dateTime: deadline.add(const Duration(hours: 1)),
+        timeZone: "Asia/Karachi",
+      ),
+    );
+
+    await calendarApi.events.insert(event, 'primary');
+  }
+
+  Future<http.Client> authenticateWithGoogle() async {
+    final googleSignIn = GoogleSignIn(
+      scopes: [gcal.CalendarApi.calendarScope],
+    );
+
+    final account = await googleSignIn.signIn();
+    if (account == null) {
+      throw Exception('Google sign-in failed');
+    }
+
+    final authHeaders = await account.authHeaders;
+    final client = http.Client();
+
+    return authenticatedClient(
+      client,
+      AccessCredentials(
+        AccessToken(
+          'Bearer',
+          authHeaders['Authorization']!.split(' ')[1],
+          DateTime.now().add(const Duration(hours: 1)),
+        ),
+        null,
+        [gcal.CalendarApi.calendarScope],
+      ),
+    );
   }
 }

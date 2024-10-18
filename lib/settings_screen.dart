@@ -1,7 +1,7 @@
-import 'package:ezmanager_task4/login_screen.dart';
 import 'package:flutter/material.dart';
 import 'package:provider/provider.dart';
 
+import 'login_screen.dart';
 import 'store/theme_provider.dart';
 import 'store/user_profile_store.dart';
 
@@ -19,7 +19,9 @@ class SettingsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        backgroundColor: themeProvider.isDarkMode ? Colors.grey[850] : Colors.green,
+        title: const Text('Settings', style: TextStyle(fontSize: 24, fontWeight: FontWeight.bold)),
+        centerTitle: true,
       ),
       body: Padding(
         padding: const EdgeInsets.all(16.0),
@@ -53,19 +55,25 @@ class SettingsScreen extends StatelessWidget {
                 if (!context.mounted) return;
                 Navigator.pop(context); // Go back to the previous screen
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.green.shade600,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
               child: const Text('Change Username'),
             ),
             const SizedBox(height: 16),
             ElevatedButton(
               onPressed: () async {
                 userProfileStore.logout(); // Handle logout logic
-
-                // Navigate to the login screen
                 Navigator.of(context).pushAndRemoveUntil(
-                  MaterialPageRoute(builder: (context) => LoginScreen()), // Replace with your login screen widget
+                  MaterialPageRoute(builder: (context) => const LoginScreen()), // Replace with your login screen widget
                   (route) => false, // Remove all previous routes
                 );
               },
+              style: ElevatedButton.styleFrom(
+                backgroundColor: Colors.red.shade600,
+                shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(12)),
+              ),
               child: const Text('Logout'),
             ),
           ],
